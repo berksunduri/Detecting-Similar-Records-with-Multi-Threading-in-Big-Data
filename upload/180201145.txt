@@ -1,0 +1,340 @@
+import pandas as pd
+import csv
+import numpy as np
+import re
+import time
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from tkinter import *
+import tkinter.ttk as ttk
+
+#df = pd.read_csv('rows.csv', usecols=['Product', 'Issue', 'Company', 'State', 'ZIP_code', 'Complaint_ID'],
+                 #encoding='latin1')
+dff = pd.read_csv('stopwords_row.csv', usecols=['Product', 'Issue', 'Company', 'State', 'ZIP_code', 'Complaint_ID'],
+                  encoding='latin1')
+
+df1 = pd.read_csv('similarityrates\Product.csv',usecols=['Col1', 'Col2', 'cID1', 'cID2', 'Similarity_Rate'], encoding='latin1')
+df2 = pd.read_csv('similarityrates\Issue.csv',usecols=['Col1', 'Col2', 'cID1', 'cID2', 'Similarity_Rate'], encoding='latin1')
+
+stop = set(stopwords.words('english'))
+rowlen = len(dff.index)
+lenoftest = 1000
+
+colsmain = list(dff.columns)
+colsproduct = list(df1.columns)
+colsissue = list(df2.columns)
+
+def preprocess(text):
+    return [word for word in word_tokenize(text) if word.lower() not in stop and not word.isdigit()]
+
+
+#####FILE CONTROLS
+#df['Product'] = df['Product'].apply(preprocess)
+# df['Issue'] = df['Issue'].apply(preprocess)
+# df['Company'] = df['Company'].apply(preprocess)
+#
+# df['Product'] = df['Product'].astype(str).str.replace(r'\[|\]|,', '')
+# df['Issue'] = df['Issue'].astype(str).str.replace(r'\[|\]|,', '')
+# df['Company'] = df['Company'].astype(str).str.replace(r'\[|\]|,', '')
+#
+# # df['Product'] = df['Product'].str.lower()
+# # df['Issue'] = df['Issue'].str.lower()
+# # df['Company'] = df['Company'].str.lower()
+#
+# # df['Product'] = df['Product'].str.split()
+# # df['Issue'] = df['Issue'].str.split()
+# # df['Company'] = df['Company'] .str.split()
+# # df.to_csv('stopwords_row.csv', mode='w', encoding='latin1')
+# df.to_csv('test.csv', mode='w', encoding='latin1')
+def test():
+    for i in range(0, lenoftest):
+        for j in range(i, lenoftest):
+            # uzun olan sozcugun belirlenmesi ve sozcuklerin atanmasi
+            longestSentence = 0
+            commonWords = 0
+            row1 = dff['Product'].iloc[i]
+            row2 = dff['Product'].iloc[j]
+            wordsRow1 = row1.split()
+            wordsRow2 = row2.split()
+            # iki tumcedede esit olan sozcukler
+            common = list(set(wordsRow1).intersection(wordsRow2))
+            if len(wordsRow1) > len(wordsRow2):
+                longestSentence = len(wordsRow1)
+                commonWords = calculate(common, wordsRow1)
+            else:
+                longestSentence = len(wordsRow2)
+                commonWords = calculate(common, wordsRow2)
+            similarityrate = (commonWords / longestSentence) * 100
+            return (commonWords / longestSentence) * 100
+            #print(i, j, similarityrate)
+
+
+def similaritywothread():
+    for i in range(0, lenoftest):
+        for j in range(i, lenoftest):
+            # uzun olan sozcugun belirlenmesi ve sozcuklerin atanmasi
+            longestSentence = 0
+            commonWords = 0
+            row1 = dff['Product'].iloc[i]
+            row2 = dff['Product'].iloc[j]
+            cid1 = dff['Complaint_ID'].iloc[i]
+            cid2 = dff['Complaint_ID'].iloc[j]
+            wordsRow1 = row1.split()
+            wordsRow2 = row2.split()
+            # iki tumcedede esit olan sozcukler
+            common = list(set(wordsRow1).intersection(wordsRow2))
+            if len(wordsRow1) > len(wordsRow2):
+                longestSentence = len(wordsRow1)
+                commonWords = calculate(common, wordsRow1)
+            else:
+                longestSentence = len(wordsRow2)
+                commonWords = calculate(common, wordsRow2)
+            similarityrate = (commonWords / longestSentence) * 100
+            data = [row1, row2, cid1, cid2, similarityrate]
+            df1.loc[len(df1)] = data
+            # return (commonWords / longestSentence) * 100
+            #print(i, j, similarityrate)
+
+
+def similaritywothreadIssue():
+    for i in range(0, lenoftest):
+        for j in range(i, lenoftest):
+            # uzun olan sozcugun belirlenmesi ve sozcuklerin atanmasi
+            longestSentence = 0
+            commonWords = 0
+            row1 = dff['Issue'].iloc[i]
+            row2 = dff['Issue'].iloc[j]
+            row3 = dff['Complaint_ID'].iloc[i]
+            row4 = dff['Complaint_ID'].iloc[j]
+            wordsRow1 = row1.split()
+            wordsRow2 = row2.split()
+            # iki tumcedede esit olan sozcukler
+            common = list(set(wordsRow1).intersection(wordsRow2))
+            if len(wordsRow1) > len(wordsRow2):
+                longestSentence = len(wordsRow1)
+                commonWords = calculate(common, wordsRow1)
+            else:
+                longestSentence = len(wordsRow2)
+                commonWords = calculate(common, wordsRow2)
+            similarityrate = (commonWords / longestSentence) * 100
+            data = [row1, row2, row3, row4, similarityrate]
+            df2.loc[len(df2)] = data
+            # return (commonWords / longestSentence) * 100
+            #print(i, j, similarityrate)
+
+
+def calculate(common, longestRow):  # esit sozcuklerin bulunmasi
+    sum = 0
+    for word in common:
+        sum += longestRow.count(word)
+    return sum
+
+
+start_time = time.time()
+
+root = Tk()
+
+colSelect = StringVar(root, 0)
+idSelect = StringVar(root, 0)
+simSelect = IntVar(root, 0)
+simSelect2 = StringVar(root, 0)
+
+
+def insertDataTree(dataframe):
+    for index, row in dataframe.iterrows():
+        tree.insert("", 0, text=index, values=list(row))
+
+
+def setColumnsTree(col):
+    tree["columns"] = col
+    for a in col:
+        tree.column(a, anchor="w")
+        tree.heading(a, text=a, anchor="w")
+
+
+def onClickCol():
+    res = columnSelect.get()
+    colSelect.set(res)
+
+
+def onClickID():
+    res = IDSelect.get()
+    idSelect.set(res)
+
+
+def onClickSimilarity():
+    res = similaritySelect.get()
+    simSelect.set(res)
+
+
+def onClickSimilarity2():
+    res = similaritySelect2.get()
+    simSelect2.set(res)
+
+
+def clear_all():
+   for item in tree.get_children():
+      tree.delete(item)
+
+
+def onClickSearch():
+    if colSelect.get() == "Product" and float(simSelect.get()) != 0:
+        setColumnsTree(colsproduct)
+        insertDataTree(df1.loc[(df1['Similarity_Rate'] >= float(simSelect.get())) & (df1['Similarity_Rate'] <= float(simSelect2.get()))])
+    elif colSelect.get() == "Product":
+        setColumnsTree(colsproduct)
+        insertDataTree(df1)
+    elif colSelect.get() == "Issue" and float(simSelect.get()) != 0:
+        setColumnsTree(colsissue)
+        insertDataTree(df2.loc[(df2['Similarity_Rate'] >= float(simSelect.get())) & (df2['Similarity_Rate'] <= float(simSelect2.get()))])
+    elif colSelect.get() == "Issue":
+        setColumnsTree(colsissue)
+        insertDataTree(df2)
+
+
+def onClickSenaryo1():
+    setColumnsTree(colsproduct)
+    insertDataTree(df1.loc[df1['Similarity_Rate'] >= 60.0])
+
+
+def onClickSenaryo2():
+    pass
+
+
+def onClickSenaryo3():
+    setColumnsTree(colsissue)
+    a = 3198084
+    b = "'incorrect' 'information' 'report'"
+    insertDataTree(df2.loc[((df2['Col1'] == b) & (df2['Similarity_Rate'] >= 50.0)) & ((df2['Col2'] == b) & (df2['Similarity_Rate'] >= 50.0))])
+
+
+def onClickSenaryo4():
+    setColumnsTree(colsproduct)
+    insertDataTree(df1.loc[df1['Similarity_Rate'] >= 60.0])
+
+
+root.title("Python Similarity Test Program")
+
+columnLabel = Label(root, text="Which column you want to work on?")
+columnSelect = Entry(root, width=50, borderwidth=2)
+setColumnButton = Button(root, text="Set Column", borderwidth=2, height=1, command=onClickCol)
+
+IDLabel = Label(root, text="If you selected Complaint_ID column which ID?")
+IDSelect = Entry(root, width=50, borderwidth=2)
+setIDButton = Button(root, text="Set ID", borderwidth=2, height=1, command=onClickID)
+
+similarityLabel = Label(root, text="Lower Similarity rate?")
+similaritySelect = Entry(root, width=50, borderwidth=2)
+setSimilarityButton = Button(root, text="Set Similarity", borderwidth=2, height=1, command=onClickSimilarity)
+
+similarityLabel2 = Label(root, text="Upper Similarity Rate?")
+similaritySelect2 = Entry(root, width=50, borderwidth=2)
+setSimilarityButton2 = Button(root, text="Set Similarity", borderwidth=2, height=1, command=onClickSimilarity2)
+
+senaryoButon1 = Button(root, text="Senaryo 1", borderwidth=2, height=1, command=onClickSenaryo1)
+senaryoButon2 = Button(root, text="Senaryo 2", borderwidth=2, height=1, command=onClickSenaryo2)
+senaryoButon3 = Button(root, text="Senaryo 3", borderwidth=2, height=1, command=onClickSenaryo3)
+senaryoButon4 = Button(root, text="Senaryo 4", borderwidth=2, height=1, command=onClickSenaryo4)
+
+setSearchButton = Button(root, text="Search", borderwidth=2, height=1, command=onClickSearch)
+resetButton = Button(root, text="Clear", borderwidth=2, height=1, command=clear_all)
+
+tree_frame = Frame(root)
+tree_frame.grid(row=9, column=2, pady=20)
+
+tree_scroll = Scrollbar(tree_frame)
+tree_scroll.grid(row=9, column=6,sticky="nse")
+
+tree = ttk.Treeview(tree_frame, yscrollcommand=tree_scroll.set)
+tree.grid(row=9, column=2,columnspan=4, sticky="nsew")
+
+tree_scroll.config(command=tree.yview)
+
+
+# tree["columns"] = colsmain
+# for i in colsmain:
+#     tree.column(i, anchor="w")
+#     tree.heading(i, text=i, anchor="w")
+####setColumnsTree(colsproduct)
+# for index, row in dff.iterrows():
+#     tree.insert("", 0, text=index, values=list(row))
+####insertDataTree(df1)
+
+columnLabel.grid(row=0, column=0)
+columnSelect.grid(row=1, column=0)
+setColumnButton.grid(row=1, column=1)
+IDLabel.grid(row=2, column=0)
+IDSelect.grid(row=3, column=0)
+setIDButton.grid(row=3, column=1)
+similarityLabel.grid(row=4, column=0)
+similaritySelect.grid(row=5, column=0)
+setSimilarityButton.grid(row=5, column=1)
+similarityLabel2.grid(row=6, column=0)
+similaritySelect2.grid(row=7, column=0)
+setSimilarityButton2.grid(row=7, column=1)
+setSearchButton.grid(row=8, column=0)
+
+senaryoButon1.grid(row=11, column=0)
+senaryoButon2.grid(row=12, column=0)
+senaryoButon3.grid(row=13, column=0)
+senaryoButon4.grid(row=14, column=0)
+resetButton.grid(row=8, column=1)
+
+print(colSelect.get())
+root.mainloop()
+print(colSelect.get())
+print(float(simSelect.get()))
+##ayri csv dosyalarina yazdirma
+# similaritywothread()
+# df1.to_csv('similarityrates\Product.csv', mode='w', encoding='latin1')
+# similaritywothreadIssue()
+# df2.to_csv('similarityrates\Issue.csv', mode='w', encoding='latin1')
+
+#print(df1.loc[(df1['Similarity_Rate'] != 100.0) & (df1['Similarity_Rate'] != 0.0)])
+
+
+# threads = []
+# # configure many threads
+# threads = [Thread(target=similaritywothread, args=()) for i in range(5)]
+# # start threads
+# for thread in threads:
+#     thread.start()
+# # wait for threads to finish
+# for thread in threads:
+#     thread.join()
+# processes = []
+# for i in range(10):
+#     p = Process(target=similaritywothread())
+#     p.start()
+#     Process.append(p)
+#
+# # Joins all the processes
+# for p in processes:
+#     p.join()
+
+print("--- %s seconds ---" % (time.time() - start_time))
+
+
+
+
+# def similarity(a, b):
+#     for i in range(a, b):
+#         for j in range(i, lenoftest):
+#             #uzun olan sozcugun belirlenmesi ve sozcuklerin atanmasi
+#             longestSentence = 0
+#             commonWords = 0
+#             row1 = dff['Product'].iloc[i]
+#             row2 = dff['Product'].iloc[j]
+#             wordsRow1 = row1.split()
+#             wordsRow2 = row2.split()
+#             # iki tumcedede esit olan sozcukler
+#             common = list(set(wordsRow1).intersection(wordsRow2))
+#             if len(wordsRow1) > len(wordsRow2):
+#                 longestSentence = len(wordsRow1)
+#                 commonWords = calculate(common, wordsRow1)
+#             else:
+#                 longestSentence = len(wordsRow2)
+#                 commonWords = calculate(common, wordsRow2)
+#
+#             #return (commonWords / longestSentence) * 100
+#             #print(i, j, (commonWords / longestSentence) * 100)

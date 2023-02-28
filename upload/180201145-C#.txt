@@ -1,0 +1,251 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using Sylvan.Data.Csv;
+using System.IO;
+using System.Diagnostics;
+using System.Threading;
+using System.Linq.Expressions;
+using System.ComponentModel;
+
+namespace SIMILARITY_MULTITHREADING_BERKSUNDURI
+{
+    public class Complaint
+    {
+        public int Id { get; set; }
+        public string Product { get; set; }
+        public string Issue { get; set; }
+        public string Company { get; set; }
+        public string State { get; set; }
+        public string ZIPCode { get; set; }
+        public int ComplaintID { get; set; }
+    }
+    public partial class MainWindow : Window
+    {
+        public List<Complaint> DataSet { get; set; }
+        public List<double> rates { get; set; }
+
+        static List<Complaint> Read(string file)
+        {
+            const int AverageRowLength = 80;
+
+            var textReader = File.OpenText(file);
+            var csvReader = CsvDataReader.Create(textReader);
+
+            var estimatedRows = (int)(textReader.BaseStream.Length / AverageRowLength);
+            var data = new List<Complaint>(estimatedRows);
+
+            while (csvReader.Read())
+            {
+                if (csvReader.RowFieldCount < 5) continue;
+                var item = new Complaint()
+                {
+                    Id = csvReader.GetInt32(0),
+                    Product = csvReader.GetString(1),
+                    Issue = csvReader.GetString(2),
+                    Company = csvReader.GetString(3),
+                    State = csvReader.GetString(4),
+                    ZIPCode = csvReader.GetString(5),
+                    ComplaintID = csvReader.GetInt32(6),
+                };
+                data.Add(item);
+            }
+            return data;
+        }
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            DataSet = Read(@"C:\Users\berk_\Desktop\180201145-Berk Sunduri\upload\SIMILARITY_MULTITHREADING_BERKSUNDURI\stopwords_row.csv");
+        }
+
+        void Action_Start()
+        {
+            string _Threads = "100";
+            Dispatcher.Invoke(new Action(() =>
+            {
+                DataSet = DataSet.Where(a => (ProductTB.Text == String.Empty || a.Product == ProductTB.Text)
+                                  && (CompanyTB.Text == String.Empty || a.Company == CompanyTB.Text)
+                                  && (StateTB.Text == String.Empty || a.State == StateTB.Text)
+                                  && (ZIPTB.Text == String.Empty || a.ZIPCode == ZIPTB.Text)
+                                  && (ComplaintTB.Text == String.Empty || a.ComplaintID == Convert.ToInt32(ComplaintTB.Text))).Select(a => a).ToList();
+            }));
+
+            int threadCount = Convert.ToInt32(_Threads);
+            int dataLength = DataSet.Count;
+            int length = dataLength/threadCount;
+            int start = 0;
+            int finish = length;
+
+            List<Task<Task<List<Content>>>> MyTasks = new();
+
+            for (int Index = 1; Index <= Convert.ToInt32(_Threads); Index++)
+            {
+                    int MyIndex = Index;
+
+                    MyTasks.Add(
+                        Task.Factory.StartNew(
+                            () => MyFunction(dataLength, start, finish)));
+                    start += length;
+                    finish += length;
+            }
+            Task.WaitAll(MyTasks.ToArray());
+
+            GetResults(MyTasks);
+        }
+
+        public async void GetResults(List<Task<Task<List<Content>>>> tasks)
+        {
+            List<Content> cr = new();
+
+            foreach (var ts in tasks.ToArray())
+            {
+                if (ts.Status == TaskStatus.RanToCompletion)
+                {
+                    cr.AddRange(await ts.Result);
+                }
+            }
+
+            Dispatcher.Invoke(new Action(() =>
+            {
+                if (ThresholdVal.Text != String.Empty && Convert.ToInt32(ThresholdVal.Text) > 0)
+                {
+                    cr = cr.Where(a => a.Similarity >= Convert.ToInt32(ThresholdVal.Text)).Select(a => a).ToList();
+                }
+                Result result = new();
+                result.ResultGrid.ItemsSource = cr;
+                result.Show();
+            }));
+
+        }
+        public async Task<List<Content>> MyFunction(int dataLength, int s, int f)
+        {
+            double sRate = 0, l1 = 0, l2 = 0, cw = 0;
+            List<Content> sRates = new();
+
+            Dispatcher.Invoke(new Action(() =>
+            {
+                if (ProductCB.IsChecked == true)
+                {
+                    for (int i = s; i < f; i++)
+                    {
+                        for (int j = i + 1; j < dataLength; j++)
+                        {
+                            var p1 = DataSet[i].Product;
+                            var p2 = DataSet[j].Product;
+                            var firstSet = p1.Split(' ');
+                            var secondSet = p2.Split(' ');
+
+                            l1 = firstSet.Length;
+                            l2 = secondSet.Length;
+
+                            if (l1 > l2)
+                            {
+                                cw = firstSet.Where(x => secondSet.Contains(x)).Count();
+                                sRate = cw * 100 / l1;
+                            }
+                            else
+                            {
+                                cw = secondSet.Where(x => firstSet.Contains(x)).Count();
+                                sRate = cw * 100 / l2;
+                            }
+                            Content c = new()
+                            {
+                                RowA = p1,
+                                RowB = p2,
+                                Similarity = sRate
+                            };
+                            sRates.Add(c);
+                        }
+                    }
+                }         
+                if (IssueCB.IsChecked == true)
+                {
+                    for (int i = s; i < f; i++)
+                    {
+                        for (int j = i + 1; j < dataLength; j++)
+                        {
+                            var p1 = DataSet[i].Issue;
+                            var p2 = DataSet[j].Issue;
+                            var firstSet = p1.Split(' ');
+                            var secondSet = p2.Split(' ');
+
+                            l1 = firstSet.Length;
+                            l2 = secondSet.Length;
+
+                            if (l1 > l2)
+                            {
+                                cw = firstSet.Where(x => secondSet.Contains(x)).Count();
+                                sRate = cw * 100 / l1;
+                            }
+                            else
+                            {
+                                cw = secondSet.Where(x => firstSet.Contains(x)).Count();
+                                sRate = cw * 100 / l2;
+                            }
+                            Content c = new()
+                            {
+                                RowA = p1,
+                                RowB = p2,
+                                Similarity = sRate
+                            };
+                            sRates.Add(c);
+                        }
+                    }
+                }         
+                if (CompanyCB.IsChecked == true)
+                {
+                    for (int i = s; i < f; i++)
+                    {
+                        for (int j = i + 1; j < dataLength; j++)
+                        {
+                            var p1 = DataSet[i].Company;
+                            var p2 = DataSet[j].Company;
+                            var firstSet = p1.Split(' ');
+                            var secondSet = p2.Split(' ');
+
+                            l1 = firstSet.Length;
+                            l2 = secondSet.Length;
+
+                            if (l1 > l2)
+                            {
+                                cw = firstSet.Where(x => secondSet.Contains(x)).Count();
+                                sRate = cw * 100 / l1;
+                            }
+                            else
+                            {
+                                cw = secondSet.Where(x => firstSet.Contains(x)).Count();
+                                sRate = cw * 100 / l2;
+                            }
+                            Content c = new()
+                            {
+                                RowA = p1,
+                                RowB = p2,
+                                Similarity = sRate
+                            };
+                            sRates.Add(c);
+                        }
+                    }
+                }               
+            }));
+            return sRates;
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            Thread MyThread = new(Action_Start);
+            MyThread.Start(); 
+        }
+    }
+}
